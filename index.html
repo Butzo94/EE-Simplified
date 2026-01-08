@@ -1,1 +1,364 @@
-Hello wordl!
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RC Filter Playground (Bode Magnitude)</title>
+
+  <!-- Plotly (CDN) -->
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+  <style>
+    :root { --maxw: 980px; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      background: #fafafa;
+      color: #111;
+    }
+    .wrap { width: min(var(--maxw), 100%); }
+    h1 { margin: 0 0 6px 0; font-size: 22px; }
+    .sub { margin: 0 0 18px 0; color: #444; line-height: 1.4; }
+    .card {
+      background: #fff;
+      border: 1px solid #e6e6e6;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.04);
+      margin-bottom: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    @media (min-width: 860px) {
+      .grid { grid-template-columns: 360px 1fr; }
+    }
+    .row { display: grid; gap: 8px; margin-bottom: 12px; }
+    label { font-size: 13px; color: #333; }
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    input[type="range"] { width: 100%; }
+    select, input[type="number"] {
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+    .kpi {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .kpi .box {
+      border: 1px dashed #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      background: #fcfcfc;
+    }
+    .kpi .t { font-size: 12px; color: #555; margin-bottom: 6px; }
+    .kpi .v { font-size: 15px; font-weight: 600; }
+    .note {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.45;
+    }
+    .try {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      background: #f6f7ff;
+      border: 1px solid #e1e4ff;
+      font-size: 13px;
+      color: #2c2f55;
+    }
+    #plot { height: 520px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>RC Filter Playground</h1>
+    <p class="sub">Move the sliders to see how the cutoff frequency changes. This shows the <b>Bode magnitude</b> (gain in dB) for a first-order RC low-pass or high-pass filter.</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="row">
+          <label for="type">Filter type</label>
+          <select id="type">
+            <option value="lp">RC Low-pass (output across C)</option>
+            <option value="hp">RC High-pass (output across R)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>Resistance R (<span id="rLabel"></span>)</label>
+          <input id="rSlider" type="range" min="1" max="1000" step="1" value="100">
+          <div class="inline">
+            <input id="rValue" type="number" min="1" max="10000000" step="1" value="100">
+            <select id="rUnit">
+              <option value="1">Ω</option>
+              <option value="1000" selected>kΩ</option>
+              <option value="1000000">MΩ</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Capacitance C (<span id="cLabel"></span>)</label>
+          <input id="cSlider" type="range" min="1" max="1000" step="1" value="100">
+          <div class="inline">
+            <input id="cValue" type="number" min="1" max="1000000" step="1" value="100">
+            <select id="cUnit">
+              <option value="1e-12">pF</option>
+              <option value="1e-9" selected>nF</option>
+              <option value="1e-6">µF</option>
+              <option value="1e-3">mF</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Frequency span</label>
+          <div class="inline">
+            <select id="fSpan">
+              <option value="4">1 Hz → 10 kHz</option>
+              <option value="6" selected>1 Hz → 1 MHz</option>
+              <option value="8">1 Hz → 100 MHz</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div class="box">
+            <div class="t">Cutoff frequency</div>
+            <div class="v" id="fcOut">—</div>
+          </div>
+          <div class="box">
+            <div class="t">Time constant</div>
+            <div class="v" id="tauOut">—</div>
+          </div>
+        </div>
+
+        <div class="try">
+          <b>Try this:</b>
+          <ul style="margin:8px 0 0 18px; padding:0;">
+            <li>Increase <b>C</b> by 10×. What happens to <b>f<sub>c</sub></b>?</li>
+            <li>Keep <b>f<sub>c</sub></b> constant: if <b>R</b> doubles, what must happen to <b>C</b>?</li>
+          </ul>
+        </div>
+
+        <p class="note" style="margin-top:12px;">
+          Tip: For a first-order RC filter, the cutoff frequency is
+          <b>f<sub>c</sub> = 1 / (2πRC)</b>. At f<sub>c</sub>, the magnitude is about <b>-3 dB</b> relative to the passband.
+        </p>
+      </div>
+
+      <div class="card">
+        <div id="plot"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    function logspace(startExp, endExp, n) {
+      // returns array of 10^exp from startExp to endExp
+      const out = [];
+      const step = (endExp - startExp) / (n - 1);
+      for (let i = 0; i < n; i++) out.push(Math.pow(10, startExp + step * i));
+      return out;
+    }
+
+    function formatSI(x, unit) {
+      // simple formatter for Hz / s with SI prefixes
+      const abs = Math.abs(x);
+      const prefixes = [
+        { v: 1e-12, p: "p" },
+        { v: 1e-9,  p: "n" },
+        { v: 1e-6,  p: "µ" },
+        { v: 1e-3,  p: "m" },
+        { v: 1,     p: ""  },
+        { v: 1e3,   p: "k" },
+        { v: 1e6,   p: "M" },
+        { v: 1e9,   p: "G" }
+      ];
+      let best = prefixes[4];
+      for (const pr of prefixes) {
+        if (abs >= pr.v) best = pr;
+      }
+      const val = x / best.v;
+      const digits = (Math.abs(val) >= 100) ? 1 : (Math.abs(val) >= 10 ? 2 : 3);
+      return `${val.toFixed(digits)} ${best.p}${unit}`;
+    }
+
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    // ---------- RC response ----------
+    // Complex numbers as {re, im}; j*something => {re:0, im:something}
+    function cAdd(a,b){ return {re:a.re+b.re, im:a.im+b.im}; }
+    function cMul(a,b){ return {re:a.re*b.re - a.im*b.im, im:a.re*b.im + a.im*b.re}; }
+    function cDiv(a,b){
+      const den = b.re*b.re + b.im*b.im;
+      return {re:(a.re*b.re + a.im*b.im)/den, im:(a.im*b.re - a.re*b.im)/den};
+    }
+    function cAbs(a){ return Math.hypot(a.re, a.im); }
+
+    function H_rc(type, w, R, C) {
+      // H(jw) for RC LP/HP (first-order)
+      const jwRC = {re: 0, im: w * R * C}; // j*w*R*C
+      const one = {re: 1, im: 0};
+
+      if (type === "lp") {
+        // 1 / (1 + j w R C)
+        return cDiv(one, cAdd(one, jwRC));
+      } else {
+        // (j w R C) / (1 + j w R C)
+        return cDiv(jwRC, cAdd(one, jwRC));
+      }
+    }
+
+    // ---------- UI wiring ----------
+    const els = {
+      type: document.getElementById("type"),
+      rSlider: document.getElementById("rSlider"),
+      rValue: document.getElementById("rValue"),
+      rUnit: document.getElementById("rUnit"),
+      rLabel: document.getElementById("rLabel"),
+      cSlider: document.getElementById("cSlider"),
+      cValue: document.getElementById("cValue"),
+      cUnit: document.getElementById("cUnit"),
+      cLabel: document.getElementById("cLabel"),
+      fSpan: document.getElementById("fSpan"),
+      fcOut: document.getElementById("fcOut"),
+      tauOut: document.getElementById("tauOut"),
+      plot: document.getElementById("plot")
+    };
+
+    function getRohms() {
+      const val = clamp(Number(els.rValue.value || 0), 1, 1e7);
+      const unit = Number(els.rUnit.value);
+      return val * unit;
+    }
+    function getCfarads() {
+      const val = clamp(Number(els.cValue.value || 0), 1, 1e6);
+      const unit = Number(els.cUnit.value);
+      return val * unit;
+    }
+
+    function syncSliderFromNumber() {
+      // Map number input to slider 1..1000 in a simple way:
+      // We'll set slider = value (clamped 1..1000). This keeps UI simple.
+      els.rSlider.value = clamp(Number(els.rValue.value || 1), 1, 1000);
+      els.cSlider.value = clamp(Number(els.cValue.value || 1), 1, 1000);
+    }
+
+    function syncNumberFromSlider() {
+      els.rValue.value = els.rSlider.value;
+      els.cValue.value = els.cSlider.value;
+    }
+
+    function updateLabels() {
+      const R = getRohms();
+      const C = getCfarads();
+      els.rLabel.textContent = formatSI(R, "Ω");
+      els.cLabel.textContent = formatSI(C, "F");
+    }
+
+    function computeAndPlot() {
+      const type = els.type.value;
+      const R = getRohms();
+      const C = getCfarads();
+
+      const tau = R * C;
+      const fc = 1 / (2 * Math.PI * tau);
+
+      els.fcOut.textContent = formatSI(fc, "Hz");
+      els.tauOut.textContent = formatSI(tau, "s");
+
+      const spanDecades = Number(els.fSpan.value); // from 10^0 to 10^spanDecades
+      const f = logspace(0, spanDecades, 600);     // 1 Hz .. 10^N Hz
+      const magDb = [];
+
+      for (let i = 0; i < f.length; i++) {
+        const w = 2 * Math.PI * f[i];
+        const H = H_rc(type, w, R, C);
+        const mag = cAbs(H);
+        magDb.push(20 * Math.log10(mag));
+      }
+
+      const fcLineX = [fc, fc];
+      const fcLineY = [-120, 20];
+
+      const traces = [
+        {
+          x: f,
+          y: magDb,
+          type: "scatter",
+          mode: "lines",
+          name: "Magnitude (dB)"
+        },
+        {
+          x: fcLineX,
+          y: fcLineY,
+          type: "scatter",
+          mode: "lines",
+          name: "f_c",
+          line: { dash: "dot" }
+        }
+      ];
+
+      const layout = {
+        title: { text: "Bode Magnitude" },
+        xaxis: {
+          title: "Frequency (Hz)",
+          type: "log",
+          autorange: true,
+          showgrid: true,
+          zeroline: false
+        },
+        yaxis: {
+          title: "Magnitude (dB)",
+          range: [-60, 5],
+          showgrid: true,
+          zeroline: false
+        },
+        legend: { orientation: "h" },
+        margin: { l: 60, r: 20, t: 60, b: 60 },
+        hovermode: "closest"
+      };
+
+      Plotly.react(els.plot, traces, layout, { responsive: true });
+
+      updateLabels();
+    }
+
+    // ---------- Events ----------
+    els.rSlider.addEventListener("input", () => { syncNumberFromSlider(); computeAndPlot(); });
+    els.cSlider.addEventListener("input", () => { syncNumberFromSlider(); computeAndPlot(); });
+
+    els.rValue.addEventListener("input", () => { syncSliderFromNumber(); computeAndPlot(); });
+    els.cValue.addEventListener("input", () => { syncSliderFromNumber(); computeAndPlot(); });
+
+    els.rUnit.addEventListener("change", computeAndPlot);
+    els.cUnit.addEventListener("change", computeAndPlot);
+    els.type.addEventListener("change", computeAndPlot);
+    els.fSpan.addEventListener("change", computeAndPlot);
+
+    // ---------- Init ----------
+    // Set initial slider->number sync and plot
+    syncNumberFromSlider();
+    computeAndPlot();
+  </script>
+</body>
+</html>
